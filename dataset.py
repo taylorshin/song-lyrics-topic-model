@@ -1,82 +1,54 @@
 import re
+import os
 import multiprocessing
+import langid
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from langdetect import detect
 from joblib import Parallel, delayed
+from constants import DF_FNAME
 
 def drop_or_not(index, row):
     """
     Determine if current document (lyrics) should be dropped or not
-    Returns index if doc needs to be dropped otherwise returns -1
+    Returns index if row needs to be dropped otherwise returns -1
     """
     # Note: row['lyrics'] returns nan when empty
-    lyric = '' if not row['lyrics'] else str(row['lyrics'])
+    lyric = '' if not row['lyrics'] else str(row['lyrics'])[:100]
     if not lyric:
         return index
     else:
-        # Check if lyrics contain any letters
-        if re.search('[a-zA-z]+', lyric):
-            try:
-                lang = detect(lyric)
-                if lang is not 'en':
-                    return index
-            except:
-                print('Row {} throws error: {}'.format(index, row['lyrics']))
-                return index
+        lang, _ = langid.classify(lyric)
+        if lang == 'en':
+            return -1
         else:
-            # Lyrics don't contain any letters and are probably random punctuation symbols
             return index
-    return -1
-
-def drop_or_not_2(lyric):
-    """
-    True -> drop it like its hot
-    False -> don't drop
-    """
-    # try:
-    #     lang = detect(lyric[:100])
-    #     if lang is not 'en':
-    #         return True
-    # except:
-    #     # print('Row {} throws error: {}'.format(index, row['lyrics']))
-    #     return True
-    # return False
-    lang = detect(lyric[:100])
-    if lang == 'en':
-        return False
-    else:
-        return True
 
 def load_data(filename):
     """
     Load data frame
-    TODO: cache data frame if possible
     """
-    df = pd.read_csv(filename)
-    df = df[:100]
+    if os.path.isfile(DF_FNAME) and os.path.exists(DF_FNAME):
+        print('Cached dataframe found.')
+        df = pd.read_pickle(DF_FNAME)
+    else:
+        print('Loading data...')
+        df = pd.read_csv(filename)
 
-    # Remove rows with missing values
-    df.dropna()
+        # Remove rows with missing values
+        df.dropna()
 
-    # Remove rows with lyrics that don't contain any letters
-    df = df[df['lyrics'].str.contains('[A-Za-z]', na=False)]
+        # Remove rows with lyrics that don't contain any letters
+        df = df[df['lyrics'].str.contains('[A-Za-z]', na=False)]
 
-    # Remove rows with non-English lyrics
-    # print('before removing non-English lyrics: ', df.shape)
-    # drop_indices = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(drop_or_not)(index, row) for index, row in tqdm(df.iterrows(), total=df.shape[0]))
-    # drop_indices = [i for i in drop_indices if i >= 0]
-    # df.drop(drop_indices)
-    # print('after removing non-English lyrics: ', df.shape)
-    print('before removing non-English lyrics: ', df.shape)
-    drop_bool_list = np.vectorize(drop_or_not_2)(np.array(df['lyrics'].tolist()))
-    print('drop bool list: ', drop_bool_list)
-    drop_indices = [i for i, d in enumerate(drop_bool_list) if d]
-    print('drop indices: ', drop_indices)
-    df = df.drop(drop_indices)
-    print('after removing non-English lyrics: ', df.shape)
+        # Remove rows with non-English lyrics
+        drop_indices = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(drop_or_not)(index, row) for index, row in tqdm(df.iterrows(), total=df.shape[0]))
+        drop_indices = [i for i in drop_indices if i >= 0]
+        df = df.drop(drop_indices)
+
+        # Cache dataframe
+        df.to_pickle(DF_FNAME)
 
     return df
 
