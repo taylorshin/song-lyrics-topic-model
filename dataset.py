@@ -55,7 +55,7 @@ def load_data(filename):
         df = remove_old_songs(df)
 
         # Remove songs whose genre is 'Not Available'
-        df = remove_Not_Available(df)
+        df = remove_not_available(df)
 
         # Cache dataframe
         df.to_pickle(DATAFRAME_FNAME)
@@ -70,9 +70,9 @@ def remove_old_songs(df, too_old=1970, too_new=2019):
     df = df.drop(drop_indices)
     drop_indices =  df.index[df['year'] > too_new].tolist()
     df = df.drop(drop_indices)
-    return def
+    return df
 
-def remove_Not_Available(df):
+def remove_not_available(df):
     """
     remove the songs whose genre is Not Available
     """
