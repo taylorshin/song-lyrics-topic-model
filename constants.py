@@ -1,1 +1,2 @@
-DF_FNAME = 'dataframe.pkl'
+DATAFRAME_FNAME = 'dataframe.pkl'
+TOKENS_FNAME = 'tokens.pkl'

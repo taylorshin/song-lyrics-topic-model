@@ -1,7 +1,8 @@
 # Custom
-lyrics.csv
 .DS_Store
+lyrics.csv
 dataframe.pkl
+tokens.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
