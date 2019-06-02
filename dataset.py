@@ -41,7 +41,7 @@ def load_data(filename):
         df = pd.read_csv(filename)
 
         # Remove rows with missing values
-        df.dropna()
+        df = df.dropna()
 
         # Remove rows with lyrics that don't contain any letters
         df = df[df['lyrics'].str.contains('[A-Za-z]', na=False)]
