@@ -51,7 +51,7 @@ def load_data(filename):
         drop_indices = [i for i in drop_indices if i >= 0]
         df = df.drop(drop_indices)
 
-        # Remove songs whose year < 1970 or > 2019
+        # Remove songs whose year < 1970
         df = remove_old_songs(df)
 
         # Remove songs whose genre is 'Not Available'
@@ -62,19 +62,17 @@ def load_data(filename):
 
     return df
 
-def remove_old_songs(df, too_old=1970, too_new=2019):
+def remove_old_songs(df, too_old=1970):
     """
-    remove the songs before 1970 and after 2019 from df
+    Remove the songs before 1970 and after 2019 from df
     """
     drop_indices =  df.index[df['year'] < too_old].tolist()
-    df = df.drop(drop_indices)
-    drop_indices =  df.index[df['year'] > too_new].tolist()
     df = df.drop(drop_indices)
     return df
 
 def remove_not_available(df):
     """
-    remove the songs whose genre is Not Available
+    Remove the songs whose genre is Not Available
     """
     drop_indices =  df.index[df['genre'] == 'Not Available'].tolist()
     df = df.drop(drop_indices)
