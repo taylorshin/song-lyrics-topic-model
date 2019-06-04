@@ -1,5 +1,7 @@
 import time
+import json
 import operator
+import pickle
 import gensim
 import dmr.dmr as dmr
 import numpy as np
@@ -30,6 +32,10 @@ def build_feature_matrix(df):
     return np.column_stack((years_encoded, artists_encoded, genres_encoded))
 
 def init_lda(df, K=2, alpha=0.1, beta=0.01):
+    # Symmetric alpha (was 0.1 before)
+    # Beta was 0.01 before
+    alpha = 1.0 / K
+
     df_list = df['lyrics'].tolist()
     corpus = tokenize_corpus(df_list)
     voca = dmr.Vocabulary()
@@ -38,6 +44,9 @@ def init_lda(df, K=2, alpha=0.1, beta=0.01):
     return corpus, voca, docs, lda
 
 def copy_init_lda(df, K=2, alpha=0.1, beta=0.01):
+    # Symmetric alpha (was 0.1 before)
+    alpha = 1.0 / K
+
     df_list = df['lyrics'].tolist()
     corpus = tokenize_corpus(df_list)
 
@@ -64,30 +73,21 @@ def main():
     # x = build_feature_matrix(df)
 
     # Learning
-    corpus, voca, docs, lda = init_lda(df)
-    print('Learning...')
-    lda.learning(iteration=1, voca=voca)
-
-    # Word probability of each topic
-    wdist = lda.word_dist_with_voca(voca)
-    # wdist.save('iter5.txt')
-    for k in wdist:
-        print('TOPIC', k)
-        # print("\t".join([w for w in wdist[k]]))
-        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
-        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
-        for word, prob in sorted_wdist_k.items():
-            print(word, prob)
-        print()
-
-    print('tuned...')
     corpus, voca, docs, lda = copy_init_lda(df)
     print('Learning...')
-    lda.learning(iteration=1, voca=voca)
+    lda.learning(iteration=3, voca=voca)
+
+    # Save LDA model
+    with open('lda_model.pkl', 'wb') as f:
+        pickle.dump(lda, f)
 
     # Word probability of each topic
     wdist = lda.word_dist_with_voca(voca)
-    # wdist.save('iter5.txt')
+
+    # Save wdist to txt file
+    with open('wdist.txt', 'w') as f:
+        f.write(json.dumps(wdist))
+
     for k in wdist:
         print('TOPIC', k)
         # print("\t".join([w for w in wdist[k]]))
