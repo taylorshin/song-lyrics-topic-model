@@ -23,7 +23,7 @@ def build_feature_matrix(df):
 
     # Encode artist
     artists_encoded = np.array((df['artist'].apply(lambda x: artists.index(x))).tolist())
-    
+
     # Encode genre
     genres_encoded = np.array((df['genre'].apply(lambda x: genres.index(x))).tolist())
 
@@ -32,6 +32,24 @@ def build_feature_matrix(df):
 def init_lda(df, K=2, alpha=0.1, beta=0.01):
     df_list = df['lyrics'].tolist()
     corpus = tokenize_corpus(df_list)
+    voca = dmr.Vocabulary()
+    docs = voca.read_corpus(corpus)
+    lda = dmr.LDA(K, alpha, beta, docs, voca.size())
+    return corpus, voca, docs, lda
+
+def copy_init_lda(df, K=2, alpha=0.1, beta=0.01):
+    df_list = df['lyrics'].tolist()
+    corpus = tokenize_corpus(df_list)
+
+    corpus = [[tk for tk in doc if len(tk)>2] for doc in corpus]
+    frq = defaultdict(int)
+
+    for doc in corpus:
+        for tk in doc:
+            frq[tk] += 1
+
+    corpus = [[tk for tk in doc if frq[tk] > 1] for doc in corpus]
+
     voca = dmr.Vocabulary()
     docs = voca.read_corpus(corpus)
     lda = dmr.LDA(K, alpha, beta, docs, voca.size())
@@ -52,11 +70,29 @@ def main():
 
     # Word probability of each topic
     wdist = lda.word_dist_with_voca(voca)
+    # wdist.save('iter5.txt')
     for k in wdist:
         print('TOPIC', k)
         # print("\t".join([w for w in wdist[k]]))
         # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
-        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:10])
+        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
+        for word, prob in sorted_wdist_k.items():
+            print(word, prob)
+        print()
+
+    print('tuned...')
+    corpus, voca, docs, lda = copy_init_lda(df)
+    print('Learning...')
+    lda.learning(iteration=1, voca=voca)
+
+    # Word probability of each topic
+    wdist = lda.word_dist_with_voca(voca)
+    # wdist.save('iter5.txt')
+    for k in wdist:
+        print('TOPIC', k)
+        # print("\t".join([w for w in wdist[k]]))
+        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
+        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
         for word, prob in sorted_wdist_k.items():
             print(word, prob)
         print()
