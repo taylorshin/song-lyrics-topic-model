@@ -80,9 +80,9 @@ def remove_not_available(df):
 
 def remove_stop_words(stop_list, tokens):
     """
-    Remove stop words from tokens
+    Remove stop words from tokens and remove tokens that are single letters/char like 's'
     """
-    return [t for t in tokens if not t in stop_list]
+    return [t for t in tokens if len(t) > 1 and not t in stop_list]
 
 def stem_tokens(stemmer, tokens):
     """
@@ -102,6 +102,7 @@ def tokenize_corpus(corpus):
     else:
         print('Tokenizing data...')
         tokens_corpus = []
+        # TODO: Try the TweetTokenizer which apparently doesn't split words with apostrophes
         tokenizer = RegexpTokenizer(r'\w+')
         # Create English stop words list
         en_stop = get_stop_words('en')
@@ -151,7 +152,7 @@ def main():
     # visualize_data(df)
     df_list = df['lyrics'].tolist()
     tokens = tokenize_corpus(df_list)
-    print(tokens[:5])
+    print(tokens[:1])
 
 
 if __name__ == '__main__':

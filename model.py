@@ -1,11 +1,14 @@
 import time
+import operator
 import gensim
+import dmr.dmr as dmr
 import numpy as np
 import pandas as pd
+from collections import defaultdict
 from gensim import corpora, models
 from dataset import load_data, tokenize_corpus
 
-def get_feature_matrix(df):
+def build_feature_matrix(df):
     """
     Return feature matrix X (numpy array) for metadata (year, artist, genre)
     Note: not using song title for now
@@ -26,30 +29,60 @@ def get_feature_matrix(df):
 
     return np.column_stack((years_encoded, artists_encoded, genres_encoded))
 
+def init_lda(df, K=2, alpha=0.1, beta=0.01):
+    df_list = df['lyrics'].tolist()
+    corpus = tokenize_corpus(df_list)
+    voca = dmr.Vocabulary()
+    docs = voca.read_corpus(corpus)
+    lda = dmr.LDA(K, alpha, beta, docs, voca.size())
+    return corpus, voca, docs, lda
+
 def main():
+    ### MPKATO APPROACH ###
     # Load and tokenize data
     df = load_data('lyrics.csv')
 
     # Metadata feature matrix
-    x = get_feature_matrix(df)
+    # x = build_feature_matrix(df)
 
-    # df_list = df['lyrics'].tolist()
-    # tokens_corpus = tokenize_corpus(df_list)
+    # Learning
+    corpus, voca, docs, lda = init_lda(df)
+    print('Learning...')
+    lda.learning(iteration=1, voca=voca)
 
-    # # Convert tokenized documents into a id <-> term dictionary
-    # dictionary = corpora.Dictionary(tokens_corpus)
+    # Word probability of each topic
+    wdist = lda.word_dist_with_voca(voca)
+    for k in wdist:
+        print('TOPIC', k)
+        # print("\t".join([w for w in wdist[k]]))
+        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
+        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:10])
+        for word, prob in sorted_wdist_k.items():
+            print(word, prob)
+        print()
 
-    # # Convert tokenized documents into a document-term matrix
-    # corpus = [dictionary.doc2bow(tokens_doc) for tokens_doc in tokens_corpus]
+    """
+    ### GENSIM APPROACH ###
+    # Load and tokenize data
+    df = load_data('lyrics.csv')
+    df_list = df['lyrics'].tolist()
+    tokens_corpus = tokenize_corpus(df_list)
 
-    # # Generate LDA model
-    # print('Generating LDA model')
-    # start = time.time()
-    # ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics=3, id2word=dictionary, passes=1)
-    # end = time.time()
-    # print('Time elapsed: {} sec'.format(end - start))
+    # Convert tokenized documents into a id <-> term dictionary
+    dictionary = corpora.Dictionary(tokens_corpus)
 
-    # print(ldamodel.print_topics(num_topics=3, num_words=3))
+    # Convert tokenized documents into a document-term matrix
+    corpus = [dictionary.doc2bow(tokens_doc) for tokens_doc in tokens_corpus]
+
+    # Generate LDA model
+    print('Generating LDA model')
+    start = time.time()
+    ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=1)
+    end = time.time()
+    print('Time elapsed: {} sec'.format(end - start))
+
+    print(ldamodel.print_topics(num_topics=2, num_words=10))
+    """
 
 if __name__ == '__main__':
     main()
