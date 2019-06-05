@@ -22,12 +22,18 @@ def build_feature_matrix(df):
     # Encode years
     min_year = min(years)
     years_encoded = np.array((pd.to_numeric(df['year']) - min_year).tolist())
+    # Normalize
+    years_encoded = (years_encoded - np.min(years_encoded)) / np.max(years_encoded)
 
     # Encode artist
     artists_encoded = np.array((df['artist'].apply(lambda x: artists.index(x))).tolist())
+    # Normalize
+    artists_encoded = (artists_encoded - np.min(artists_encoded)) / np.max(artists_encoded)
 
     # Encode genre
     genres_encoded = np.array((df['genre'].apply(lambda x: genres.index(x))).tolist())
+    # Normalize
+    genres_encoded = (genres_encoded - np.min(genres_encoded)) / np.max(genres_encoded)
 
     return np.column_stack((years_encoded, artists_encoded, genres_encoded))
 
@@ -35,7 +41,6 @@ def init_lda(df, K=2, alpha=0.1, beta=0.01):
     # Symmetric alpha (was 0.1 before)
     # Beta was 0.01 before
     alpha = 1.0 / K
-
     df_list = df['lyrics'].tolist()
     corpus = tokenize_corpus(df_list)
     voca = dmr.Vocabulary()
@@ -43,26 +48,13 @@ def init_lda(df, K=2, alpha=0.1, beta=0.01):
     lda = dmr.LDA(K, alpha, beta, docs, voca.size())
     return corpus, voca, docs, lda
 
-def copy_init_lda(df, K=2, alpha=0.1, beta=0.01):
-    # Symmetric alpha (was 0.1 before)
-    alpha = 1.0 / K
-
+def init_dmr(df, vecs, K=2, sigma=1.0, beta=0.01):
     df_list = df['lyrics'].tolist()
     corpus = tokenize_corpus(df_list)
-
-    corpus = [[tk for tk in doc if len(tk)>2] for doc in corpus]
-    frq = defaultdict(int)
-
-    for doc in corpus:
-        for tk in doc:
-            frq[tk] += 1
-
-    corpus = [[tk for tk in doc if frq[tk] > 1] for doc in corpus]
-
     voca = dmr.Vocabulary()
     docs = voca.read_corpus(corpus)
-    lda = dmr.LDA(K, alpha, beta, docs, voca.size())
-    return corpus, voca, docs, lda
+    lda = dmr.DMR(K, sigma, beta, docs, vecs, voca.size())
+    return corpus, voca, docs, vecs, lda
 
 def main():
     ### MPKATO APPROACH ###
@@ -70,22 +62,21 @@ def main():
     df = load_data('lyrics.csv')
 
     # Metadata feature matrix
-    # x = build_feature_matrix(df)
+    feat_mat = build_feature_matrix(df)
 
-    # Learning
-    corpus, voca, docs, lda = copy_init_lda(df)
-    print('Learning...')
-    lda.learning(iteration=3, voca=voca)
+    ### DMR ###
+    corpus, voca, docs, vecs, lda = init_dmr(df, feat_mat)
+    lda.learning(iteration=10, voca=voca)
 
     # Save LDA model
-    with open('lda_model.pkl', 'wb') as f:
+    with open('model_dmr.pkl', 'wb') as f:
         pickle.dump(lda, f)
 
     # Word probability of each topic
     wdist = lda.word_dist_with_voca(voca)
 
     # Save wdist to txt file
-    with open('wdist.txt', 'w') as f:
+    with open('wdist_dmr.txt', 'w') as f:
         f.write(json.dumps(wdist))
 
     for k in wdist:
@@ -96,6 +87,34 @@ def main():
         for word, prob in sorted_wdist_k.items():
             print(word, prob)
         print()
+
+    """
+    ### LDA ###
+    # Learning
+    corpus, voca, docs, lda = nit_lda(df)
+    print('Learning...')
+    lda.learning(iteration=3, voca=voca)
+
+    # Save LDA model
+    with open('model_lda.pkl', 'wb') as f:
+        pickle.dump(lda, f)
+
+    # Word probability of each topic
+    wdist = lda.word_dist_with_voca(voca)
+
+    # Save wdist to txt file
+    with open('wdist_lda.txt', 'w') as f:
+        f.write(json.dumps(wdist))
+
+    for k in wdist:
+        print('TOPIC', k)
+        # print("\t".join([w for w in wdist[k]]))
+        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
+        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
+        for word, prob in sorted_wdist_k.items():
+            print(word, prob)
+        print()
+    """
 
     """
     ### GENSIM APPROACH ###

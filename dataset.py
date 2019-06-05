@@ -8,10 +8,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from joblib import Parallel, delayed
-from nltk.tokenize import RegexpTokenizer
+from nltk.tokenize import RegexpTokenizer, TweetTokenizer
 from nltk.stem.porter import PorterStemmer
 from stop_words import get_stop_words
-from constants import DATAFRAME_FNAME, TOKENS_FNAME
+from constants import DATAFRAME_FNAME, TOKENS_FNAME, STOP_WORDS
 
 def drop_or_not(index, row):
     """
@@ -82,13 +82,19 @@ def remove_stop_words(stop_list, tokens):
     """
     Remove stop words from tokens and remove tokens that are single letters/char like 's'
     """
-    return [t for t in tokens if len(t) > 1 and not t in stop_list]
+    return [t for t in tokens if len(t) > 2 and not t in stop_list]
 
 def stem_tokens(stemmer, tokens):
     """
     Stem tokens
     """
     return [stemmer.stem(t) for t in tokens]
+
+def remove_low_freq_tokens(freq_list, tokens):
+    """
+    Remove low frequency tokens
+    """
+    return [t for t in tokens if freq_list[t] > 1]
 
 def tokenize_corpus(corpus):
     """
@@ -98,14 +104,15 @@ def tokenize_corpus(corpus):
     if os.path.isfile(TOKENS_FNAME) and os.path.exists(TOKENS_FNAME):
         print('Cached tokens found.')
         with open(TOKENS_FNAME, 'rb') as f:
-            stemmed_tokens = pickle.load(f)
+            final_tokens = pickle.load(f)
     else:
         print('Tokenizing data...')
         tokens_corpus = []
         # TODO: Try the TweetTokenizer which apparently doesn't split words with apostrophes
+        # tokenizer = TweetTokenizer()
         tokenizer = RegexpTokenizer(r'\w+')
         # Create English stop words list
-        en_stop = get_stop_words('en')
+        en_stop = get_stop_words('en') + STOP_WORDS
         # Create p_stemmer of class PorterStemmer
         p_stemmer = PorterStemmer()
 
@@ -120,11 +127,18 @@ def tokenize_corpus(corpus):
         print('Stemming tokens...')
         stemmed_tokens = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(stem_tokens)(p_stemmer, tokens) for tokens in tqdm(stopped_tokens))
 
+        print('Removing low frequency tokens...')
+        freq_list = defaultdict(int)
+        for doc in corpus:
+            for tk in doc:
+                freq_list[tk] += 1
+        final_tokens = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(remove_low_freq_tokens)(freq_list, tokens) for tokens in tqdm(stemmed_tokens))
+
         # Cache tokens
         with open(TOKENS_FNAME, 'wb') as f:
-            pickle.dump(stemmed_tokens, f)
+            pickle.dump(final_tokens, f)
 
-    return stemmed_tokens
+    return final_tokens
 
 def visualize_data(df):
     """
@@ -153,6 +167,8 @@ def main():
     df_list = df['lyrics'].tolist()
     tokens = tokenize_corpus(df_list)
     print(tokens[:1])
+    en_stop = get_stop_words('en') + STOP_WORDS
+    print('Stop words: ', en_stop, len(en_stop))
 
 
 if __name__ == '__main__':
