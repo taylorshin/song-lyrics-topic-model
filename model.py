@@ -6,7 +6,6 @@ import gensim
 import dmr.dmr as dmr
 import numpy as np
 import pandas as pd
-from collections import defaultdict
 from gensim import corpora, models
 from dataset import load_data, tokenize_corpus
 

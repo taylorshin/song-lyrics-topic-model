@@ -6,6 +6,7 @@ import langid
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from collections import defaultdict
 from tqdm import tqdm
 from joblib import Parallel, delayed
 from nltk.tokenize import RegexpTokenizer, TweetTokenizer
@@ -129,9 +130,9 @@ def tokenize_corpus(corpus):
 
         print('Removing low frequency tokens...')
         freq_list = defaultdict(int)
-        for doc in corpus:
-            for tk in doc:
-                freq_list[tk] += 1
+        for doc in stemmed_tokens:
+            for token in doc:
+                freq_list[token] += 1
         final_tokens = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(remove_low_freq_tokens)(freq_list, tokens) for tokens in tqdm(stemmed_tokens))
 
         # Cache tokens
@@ -167,8 +168,8 @@ def main():
     df_list = df['lyrics'].tolist()
     tokens = tokenize_corpus(df_list)
     print(tokens[:1])
-    en_stop = get_stop_words('en') + STOP_WORDS
-    print('Stop words: ', en_stop, len(en_stop))
+    # en_stop = get_stop_words('en') + STOP_WORDS
+    # print('Stop words: ', en_stop, len(en_stop))
 
 
 if __name__ == '__main__':
