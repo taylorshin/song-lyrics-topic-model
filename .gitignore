@@ -3,6 +3,7 @@
 lyrics.csv
 *.pkl
 wdist_*.txt
+*.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

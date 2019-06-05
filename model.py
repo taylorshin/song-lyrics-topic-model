@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import operator
@@ -12,6 +13,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from gensim import corpora, models
 from dataset import load_data, tokenize_corpus
+from constants import FEATMAT_FNAME
 
 def one_hot(i, num_classes):
     arr = np.zeros((num_classes,))
@@ -23,34 +25,44 @@ def build_feature_matrix(df):
     Return feature matrix X (numpy array) for metadata (year, artist, genre)
     Note: not using song title for now
     """
-    years_unique = df.year.unique().tolist()
-    artists_unique = df.artist.unique().tolist()
-    genres_unique = df.genre.unique().tolist()
+    if os.path.isfile(FEATMAT_FNAME) and os.path.exists(FEATMAT_FNAME):
+        print('Feature matrix cache found.')
+        feat_mat = np.load(FEATMAT_FNAME)
+    else:
+        print('Building feature matrix')
+        years_unique = df.year.unique().tolist()
+        artists_unique = df.artist.unique().tolist()
+        genres_unique = df.genre.unique().tolist()
 
-    # Encode years
-    years_encoded = np.array((pd.to_numeric(df['year']) - min(years_unique)).tolist())
-    # Quantize years/time into 5 year chunks
-    num_year_chunks = len(years_unique) // 5
-    chunk_id_list = list(itertools.chain.from_iterable(itertools.repeat(x, 5) for x in range(num_year_chunks)))
-    last_chunk_id = chunk_id_list[-1]
-    chunk_id_list = chunk_id_list + ([last_chunk_id] * (len(years_unique) % 5))
-    # One-hot vectors of years
-    years_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(chunk_id_list[year], num_year_chunks) for year in tqdm(years_encoded))
-    years_hot = np.array(years_hot)
+        # Encode years
+        years_encoded = np.array((pd.to_numeric(df['year']) - min(years_unique)).tolist())
+        # Quantize years/time into 5 year chunks
+        num_year_chunks = len(years_unique) // 5
+        chunk_id_list = list(itertools.chain.from_iterable(itertools.repeat(x, 5) for x in range(num_year_chunks)))
+        last_chunk_id = chunk_id_list[-1]
+        chunk_id_list = chunk_id_list + ([last_chunk_id] * (len(years_unique) % 5))
+        # One-hot vectors of years
+        years_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(chunk_id_list[year], num_year_chunks) for year in tqdm(years_encoded))
+        years_hot = np.array(years_hot)
 
-    # Encode artist
-    artists_encoded = np.array((df['artist'].apply(lambda x: artists_unique.index(x))).tolist())
-    # One-hot vectors of artists
-    artists_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(artist, len(artists_unique)) for artist in tqdm(artists_encoded))
-    artists_hot = np.array(artists_hot)
+        # Encode artist
+        # artists_encoded = np.array((df['artist'].apply(lambda x: artists_unique.index(x))).tolist())
+        # # One-hot vectors of artists
+        # artists_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(artist, len(artists_unique)) for artist in tqdm(artists_encoded))
+        # artists_hot = np.array(artists_hot)
 
-    # Encode genre
-    genres_encoded = np.array((df['genre'].apply(lambda x: genres_unique.index(x))).tolist())
-    # One-hot vectors of genres
-    genres_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(genre, len(genres_unique)) for genre in tqdm(genres_encoded))
-    genres_hot = np.array(genres_hot)
+        # Encode genre
+        genres_encoded = np.array((df['genre'].apply(lambda x: genres_unique.index(x))).tolist())
+        # One-hot vectors of genres
+        genres_hot = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(one_hot)(genre, len(genres_unique)) for genre in tqdm(genres_encoded))
+        genres_hot = np.array(genres_hot)
 
-    return np.hstack((years_hot, artists_hot, genres_hot))
+        # feat_mat = np.hstack((years_hot, artists_hot, genres_hot))
+        feat_mat = np.hstack((years_hot, genres_hot))
+        # Cache feature matrix
+        np.save(FEATMAT_FNAME, feat_mat)
+    
+    return feat_mat
 
 def init_lda(df, K=2, alpha=0.1, beta=0.01):
     # Symmetric alpha (was 0.1 before)
@@ -77,8 +89,6 @@ def main():
     df = load_data('lyrics.csv')
 
     # Metadata feature matrix
-    # TODO: cache feature matrix?
-    print('Building feature matrix')
     feat_mat = build_feature_matrix(df)
 
     ### DMR ###
