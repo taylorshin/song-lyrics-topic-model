@@ -109,7 +109,7 @@ def tokenize_corpus(corpus):
     else:
         print('Tokenizing data...')
         tokens_corpus = []
-        # TODO: Try the TweetTokenizer which apparently doesn't split words with apostrophes
+        # TweetTokenizer doesn't split words with apostrophes
         # tokenizer = TweetTokenizer()
         tokenizer = RegexpTokenizer(r'\w+')
         # Create English stop words list

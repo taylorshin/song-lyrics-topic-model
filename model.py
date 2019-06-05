@@ -65,7 +65,7 @@ def main():
 
     ### DMR ###
     corpus, voca, docs, vecs, lda = init_dmr(df, feat_mat)
-    lda.learning(iteration=10, voca=voca)
+    lda.learning(iteration=20, voca=voca)
 
     # Save LDA model
     with open('model_dmr.pkl', 'wb') as f:
