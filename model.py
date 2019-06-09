@@ -95,7 +95,7 @@ def train_dmr(corpus, voca, docs, vecs, K=10, sigma=1.0, beta=0.01, iters=20, mo
 
     return lda
 
-def evaluate_lda(trained, corpus, voca, docs, vecs, K=10, alpha=0.1, beta=0.01):
+def evaluate_lda(trained, corpus, voca, docs, K=10, alpha=0.1, beta=0.01):
     """
     Calculate perplexity score of LDA model on test data
     """
@@ -158,31 +158,32 @@ def main():
     docs_test = voca_test.read_corpus(corpus_test)
 
     # Parameters
-    K = 10
-    alpha = 0.1
+    K_list = [10, 20, 30, 40, 50]
+    # K = 20
     sigma=1.0
-    beta=0.01
 
     # Create out directory
     os.makedirs(os.path.dirname('out/'), exist_ok=True)
 
-    # Train LDA model
-    model_fname = 'model_lda_k' + str(K) + '_a' + str(alpha) + '_b' + str(beta) + '.pkl'
-    model_fname = os.path.join(OUT_DIR, model_fname)
-    lda = train_lda(corpus_train, voca_train, docs_train, K=K, alpha=alpha, beta=beta, model_fname=model_fname)
-    # Train DMR model
-    # model_fname = 'model_dmr_k' + str(K) + '_s' + str(sigma) + '_b' + str(beta) + '.pkl'
-    # lda = train_dmr(corpus_train, voca_train, docs_train, feat_mat_train, K=K, sigma=sigma, beta=beta, model_fname=model_fname)
+    for K in K_list:
+        # Train LDA model
+        # model_fname = 'model_lda_k' + str(K) + '.pkl'
+        # model_fname = os.path.join(OUT_DIR, model_fname)
+        # lda = train_lda(corpus_train, voca_train, docs_train, K=K, model_fname=model_fname)
+        # Train DMR model
+        model_fname = 'model_dmr_k' + str(K) + '_s' + str(sigma) + '.pkl'
+        model_fname = os.path.join(OUT_DIR, model_fname)
+        lda = train_dmr(corpus_train, voca_train, docs_train, feat_mat_train, K=K, sigma=sigma, model_fname=model_fname)
 
-    # Word probability of each topic
-    wdist = lda.word_dist_with_voca(voca_train, topk=20)
-    print_top_words(wdist)
+        # Word probability of each topic
+        # wdist = lda.word_dist_with_voca(voca_train, topk=20)
+        # print_top_words(wdist)
 
-    # Calculate perplexity score of LDA model
-    p_score = evaluate_lda(lda, corpus_test, voca_test, docs_test, K=K, alpha=alpha, beta=beta)
-    # Calculate perplexity score of DMR model
-    # p_score = evaluate_dmr(lda, corpus_test, voca_test, docs_test, feat_mat_test, K=K, sigma=sigma, beta=beta)
-    print('Perplexity Score:', p_score)
+        # Calculate perplexity score of LDA model
+        # p_score = evaluate_lda(lda, corpus_test, voca_test, docs_test, K=K)
+        # Calculate perplexity score of DMR model
+        p_score = evaluate_dmr(lda, corpus_test, voca_test, docs_test, feat_mat_test, K=K, sigma=sigma)
+        print('Perplexity Score:', p_score)
 
     # Topic probability of each document
     # tdist = lda.topicdist()
