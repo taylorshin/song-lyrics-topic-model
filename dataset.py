@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from nltk.tokenize import RegexpTokenizer, TweetTokenizer
 from nltk.stem.porter import PorterStemmer
 from stop_words import get_stop_words
-from constants import DATAFRAME_FNAME, TOKENS_FNAME, STOP_WORDS
+from constants import DATAFRAME_FNAME, STOP_WORDS
 
 def drop_or_not(index, row):
     """
