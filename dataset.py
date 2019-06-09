@@ -97,14 +97,14 @@ def remove_low_freq_tokens(freq_list, tokens):
     """
     return [t for t in tokens if freq_list[t] > 1]
 
-def tokenize_corpus(corpus):
+def tokenize_corpus(corpus, tokens_fname):
     """
     Segment each document in corpus into words
     Also applys stop words and stemming to tokens
     """
-    if os.path.isfile(TOKENS_FNAME) and os.path.exists(TOKENS_FNAME):
+    if os.path.isfile(tokens_fname) and os.path.exists(tokens_fname):
         print('Cached tokens found.')
-        with open(TOKENS_FNAME, 'rb') as f:
+        with open(tokens_fname, 'rb') as f:
             final_tokens = pickle.load(f)
     else:
         print('Tokenizing data...')
@@ -136,7 +136,7 @@ def tokenize_corpus(corpus):
         final_tokens = Parallel(n_jobs=multiprocessing.cpu_count(), prefer='threads')(delayed(remove_low_freq_tokens)(freq_list, tokens) for tokens in tqdm(stemmed_tokens))
 
         # Cache tokens
-        with open(TOKENS_FNAME, 'wb') as f:
+        with open(tokens_fname, 'wb') as f:
             pickle.dump(final_tokens, f)
 
     return final_tokens

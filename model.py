@@ -13,21 +13,21 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from gensim import corpora, models
 from dataset import load_data, tokenize_corpus
-from constants import FEATMAT_FNAME
+from constants import FEATMAT_TRAIN_FNAME, FEATMAT_TEST_FNAME, TOKENS_TRAIN_FNAME, TOKENS_TEST_FNAME, OUT_DIR
 
 def one_hot(i, num_classes):
     arr = np.zeros((num_classes,))
     arr[i] = 1
     return arr
 
-def build_feature_matrix(df):
+def build_feature_matrix(df, featmat_fname):
     """
     Return feature matrix X (numpy array) for metadata (year, artist, genre)
     Note: not using song title for now
     """
-    if os.path.isfile(FEATMAT_FNAME) and os.path.exists(FEATMAT_FNAME):
-        print('Feature matrix cache found.')
-        feat_mat = np.load(FEATMAT_FNAME)
+    if os.path.isfile(featmat_fname) and os.path.exists(featmat_fname):
+        print('Cached feature matrix found.')
+        feat_mat = np.load(featmat_fname)
     else:
         print('Building feature matrix')
         years_unique = df.year.unique().tolist()
@@ -60,88 +60,132 @@ def build_feature_matrix(df):
         # feat_mat = np.hstack((years_hot, artists_hot, genres_hot))
         feat_mat = np.hstack((years_hot, genres_hot))
         # Cache feature matrix
-        np.save(FEATMAT_FNAME, feat_mat)
+        np.save(featmat_fname, feat_mat)
     
     return feat_mat
 
-def init_lda(df, K=2, alpha=0.1, beta=0.01):
-    # Symmetric alpha (was 0.1 before)
-    # Beta was 0.01 before
-    alpha = 1.0 / K
-    df_list = df['lyrics'].tolist()
-    corpus = tokenize_corpus(df_list)
-    voca = dmr.Vocabulary()
-    docs = voca.read_corpus(corpus)
-    lda = dmr.LDA(K, alpha, beta, docs, voca.size())
-    return corpus, voca, docs, lda
+def train_lda(corpus, voca, docs, K=10, alpha=0.1, beta=0.01, iters=20, model_fname='model_lda.pkl'):
+    if os.path.isfile(model_fname) and os.path.exists(model_fname):
+        print('Cached model found.')
+        with open(model_fname, 'rb') as f:
+            lda = pickle.load(f)
+    else:
+        # Symmetric alpha (was 0.1 before)
+        # Beta was 0.01 before
+        alpha = 1.0 / K
+        lda = dmr.LDA(K, alpha, beta, docs, voca.size())
+        lda.learning(iteration=iters, voca=voca)
+        # Save LDA model
+        with open(model_fname, 'wb') as f:
+            pickle.dump(lda, f)
 
-def init_dmr(df, vecs, K=2, sigma=1.0, beta=0.01):
-    df_list = df['lyrics'].tolist()
-    corpus = tokenize_corpus(df_list)
-    voca = dmr.Vocabulary()
-    docs = voca.read_corpus(corpus)
-    lda = dmr.DMR(K, sigma, beta, docs, vecs, voca.size())
-    return corpus, voca, docs, vecs, lda
+    return lda
+
+def train_dmr(corpus, voca, docs, vecs, K=10, sigma=1.0, beta=0.01, iters=20, model_fname='model_dmr.pkl'):
+    if os.path.isfile(model_fname) and os.path.exists(model_fname):
+        print('Cached model found.')
+        with open(model_fname, 'rb') as f:
+            lda = pickle.load(f)
+    else:
+        lda = dmr.DMR(K, sigma, beta, docs, vecs, voca.size())
+        lda.learning(iteration=iters, voca=voca)
+        # Save LDA model
+        with open(model_fname, 'wb') as f:
+            pickle.dump(lda, f)
+
+    return lda
+
+def evaluate_lda(trained, corpus, voca, docs, vecs, K=10, alpha=0.1, beta=0.01):
+    """
+    Calculate perplexity score of LDA model on test data
+    """
+    lda = dmr.LDA(K, alpha, beta, docs, voca.size(), trained=trained)
+    p_score = lda.perplexity()
+    return p_score
+
+def evaluate_dmr(trained, corpus, voca, docs, vecs, K=10, sigma=1.0, beta=0.01):
+    """
+    Calculate perplexity score of DMR model on test data
+    """
+    lda = dmr.DMR(K, sigma, beta, docs, vecs, voca.size(), trained=trained)
+    p_score = lda.perplexity()
+    return p_score
+
+def print_top_words(wdist):
+    """
+    Print the high probability words of each topic
+    """
+    for k in wdist:
+        print('TOPIC', k)
+        # print("\t".join([w for w in wdist[k]]))
+        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
+        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True))
+        for word, prob in sorted_wdist_k.items():
+            print(word, prob)
+        print()
+
+def print_topic_probs(tdist):
+    """
+    Print the topic probability of each document
+    """
+    for first_letter in ['a', 'b', 'c', 'd', 'e']:
+        for doc, vec, td in zip(corpus, vecs, tdist):
+            if doc[0].startswith(first_letter):
+                print('DOC', 'Words: ', doc, 'Max topic: ', np.argmax(td), 'Max prob.: ', np.max(td))
+                print('ALPHA', np.dot(vec, lda.Lambda.T))
 
 def main():
     ### MPKATO APPROACH ###
     # Load and tokenize data
     df = load_data('lyrics.csv')
 
+    # Train test split
+    df_train = df.sample(frac=0.8, random_state=42)
+    df_test = df.drop(df_train.index)
+
     # Metadata feature matrix
-    feat_mat = build_feature_matrix(df)
+    feat_mat_train = build_feature_matrix(df_train, FEATMAT_TRAIN_FNAME)
+    feat_mat_test = build_feature_matrix(df_test, FEATMAT_TEST_FNAME)
 
-    ### DMR ###
-    corpus, voca, docs, vecs, lda = init_dmr(df, feat_mat)
-    lda.learning(iteration=20, voca=voca)
+    # Set up corpus, vocabulary, and documents
+    df_list_train = df_train['lyrics'].tolist()
+    corpus_train = tokenize_corpus(df_list_train, TOKENS_TRAIN_FNAME)
+    voca_train = dmr.Vocabulary()
+    docs_train = voca_train.read_corpus(corpus_train)
+    df_list_test = df_test['lyrics'].tolist()
+    corpus_test = tokenize_corpus(df_list_test, TOKENS_TEST_FNAME)
+    voca_test = dmr.Vocabulary()
+    docs_test = voca_test.read_corpus(corpus_test)
 
-    # Save LDA model
-    with open('model_dmr.pkl', 'wb') as f:
-        pickle.dump(lda, f)
+    # Parameters
+    K = 10
+    alpha = 0.1
+    sigma=1.0
+    beta=0.01
 
-    # Word probability of each topic
-    wdist = lda.word_dist_with_voca(voca)
+    # Create out directory
+    os.makedirs(os.path.dirname('out/'), exist_ok=True)
 
-    # Save wdist to txt file
-    with open('wdist_dmr.txt', 'w') as f:
-        f.write(json.dumps(wdist))
-
-    for k in wdist:
-        print('TOPIC', k)
-        # print("\t".join([w for w in wdist[k]]))
-        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
-        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
-        for word, prob in sorted_wdist_k.items():
-            print(word, prob)
-        print()
-
-    """
-    ### LDA ###
-    # Learning
-    corpus, voca, docs, lda = nit_lda(df)
-    print('Learning...')
-    lda.learning(iteration=3, voca=voca)
-
-    # Save LDA model
-    with open('model_lda.pkl', 'wb') as f:
-        pickle.dump(lda, f)
+    # Train LDA model
+    model_fname = 'model_lda_k' + str(K) + '_a' + str(alpha) + '_b' + str(beta) + '.pkl'
+    model_fname = os.path.join(OUT_DIR, model_fname)
+    lda = train_lda(corpus_train, voca_train, docs_train, K=K, alpha=alpha, beta=beta, model_fname=model_fname)
+    # Train DMR model
+    # model_fname = 'model_dmr_k' + str(K) + '_s' + str(sigma) + '_b' + str(beta) + '.pkl'
+    # lda = train_dmr(corpus_train, voca_train, docs_train, feat_mat_train, K=K, sigma=sigma, beta=beta, model_fname=model_fname)
 
     # Word probability of each topic
-    wdist = lda.word_dist_with_voca(voca)
+    wdist = lda.word_dist_with_voca(voca_train, topk=20)
+    print_top_words(wdist)
 
-    # Save wdist to txt file
-    with open('wdist_lda.txt', 'w') as f:
-        f.write(json.dumps(wdist))
+    # Calculate perplexity score of LDA model
+    p_score = evaluate_lda(lda, corpus_test, voca_test, docs_test, K=K, alpha=alpha, beta=beta)
+    # Calculate perplexity score of DMR model
+    # p_score = evaluate_dmr(lda, corpus_test, voca_test, docs_test, feat_mat_test, K=K, sigma=sigma, beta=beta)
+    print('Perplexity Score:', p_score)
 
-    for k in wdist:
-        print('TOPIC', k)
-        # print("\t".join([w for w in wdist[k]]))
-        # print("\t".join(["%0.2f" % wdist[k][w] for w in wdist[k]]))
-        sorted_wdist_k = dict(sorted(wdist[k].items(), key=operator.itemgetter(1), reverse=True)[:20])
-        for word, prob in sorted_wdist_k.items():
-            print(word, prob)
-        print()
-    """
+    # Topic probability of each document
+    # tdist = lda.topicdist()
 
     """
     ### GENSIM APPROACH ###

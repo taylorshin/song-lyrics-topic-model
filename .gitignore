@@ -4,6 +4,7 @@ lyrics.csv
 *.pkl
 wdist_*.txt
 *.npy
+out/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
