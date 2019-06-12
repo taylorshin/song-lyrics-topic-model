@@ -6,6 +6,7 @@ import pickle
 import gensim
 import itertools
 import multiprocessing
+import matplotlib.pyplot as plt
 import dmr.dmr as dmr
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from gensim import corpora, models
 from dataset import load_data, tokenize_corpus
-from constants import FEATMAT_TRAIN_FNAME, FEATMAT_TEST_FNAME, TOKENS_TRAIN_FNAME, TOKENS_TEST_FNAME, OUT_DIR
+from constants import FEATMAT_TRAIN_FNAME, FEATMAT_TEST_FNAME, TOKENS_TRAIN_FNAME, TOKENS_TEST_FNAME, OUT_DIR, VERIFY_LEARN_PLOT_FILE
 
 def one_hot(i, num_classes):
     arr = np.zeros((num_classes,))
@@ -157,6 +158,35 @@ def main():
     voca_test = dmr.Vocabulary()
     docs_test = voca_test.read_corpus(corpus_test)
 
+    ### Plot perplexity vs iterations for LDA/DMR to verify that learning works ###
+    K = 10
+    alpha = 1.0 / K
+    beta = 0.01
+    sigma = 0.1
+    iters = 20
+    # Verify learning for LDA
+    model_lda = dmr.LDA(K, alpha, beta, docs_train, voca_train.size())
+    lda_perps = model_lda.verify_learning(iteration=iters, voca=voca_train)
+    # Evaluate final LDA model
+    perp_lda = evaluate_lda(model_lda, corpus_test, voca_test, docs_test, K=K)
+    print('Perplexity score for LDA:', perp_lda)
+    # Verify learning for DMR
+    model_dmr = dmr.DMR(K, sigma, beta, docs_train, feat_mat_train, voca_train.size())
+    dmr_perps = model_dmr.verify_learning(iteration=iters, voca=voca_train)
+    # Evaluate final DMR model
+    perp_lda = evaluate_dmr(model_dmr, corpus_test, voca_test, docs_test, feat_mat_test K=K, sigma=sigma)
+    print('Perplexity score for DMR:', perp_dmr)
+    # Plot LDA vs DMR
+    iterations = range(iters)
+    plt.plot(iterations, lda_perps, label='LDA')
+    plt.plot(iterations, dmr_perps, label='DMR')
+    plt.title('Verification of Learning')
+    plt.xlabel('Iteration')
+    plt.ylabel('Perplexity')
+    plt.legend()
+    plt.savefig(VERIFY_LEARN_PLOT_FILE)
+
+    """
     # Parameters
     K_list = [10, 20, 30, 40, 50]
     # K = 20
@@ -187,6 +217,7 @@ def main():
 
     # Topic probability of each document
     # tdist = lda.topicdist()
+    """
 
     """
     ### GENSIM APPROACH ###
