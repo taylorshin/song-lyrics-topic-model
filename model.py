@@ -174,7 +174,7 @@ def main():
     model_dmr = dmr.DMR(K, sigma, beta, docs_train, feat_mat_train, voca_train.size())
     dmr_perps = model_dmr.verify_learning(iteration=iters, voca=voca_train)
     # Evaluate final DMR model
-    perp_lda = evaluate_dmr(model_dmr, corpus_test, voca_test, docs_test, feat_mat_test K=K, sigma=sigma)
+    perp_lda = evaluate_dmr(model_dmr, corpus_test, voca_test, docs_test, feat_mat_test, K=K, sigma=sigma)
     print('Perplexity score for DMR:', perp_dmr)
     # Plot LDA vs DMR
     iterations = range(iters)
